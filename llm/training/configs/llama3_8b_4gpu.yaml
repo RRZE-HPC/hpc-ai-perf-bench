@@ -1,0 +1,91 @@
+# LLaMA 3 8B training benchmark configuration (4 GPUs)
+# Note: training data is generated on the fly by the synthetic data module
+
+model_name: Meta-Llama-3-8B
+
+##############################################################################
+# Paths and I/O
+##############################################################################
+out_dir: ./outputbench
+
+##############################################################################
+# Compute Settings
+##############################################################################
+precision: bf16-true
+logger_name: csv     # "csv", "wandb", or "tensorboard" as needed
+resume: false        # If you want to auto-resume from out_dir, set to 'auto' or True
+
+##############################################################################
+# Data
+##############################################################################
+data:
+  class_path: litgpt.data.Synthetic
+  init_args:
+    train_samples: 10000
+    val_samples: 1000
+
+##############################################################################
+# Training
+##############################################################################
+train:
+
+  log_interval: 1            # Print loss/logs every step
+
+  # Batch sizing
+  global_batch_size: 64
+  micro_batch_size: 4
+
+  # LR schedule
+  lr_warmup_steps: 50
+
+  max_seq_length: 512
+
+  # Stopping criterion
+  max_tokens: 30000000
+
+  # Optional: Set a final minimal LR after decay:
+  min_lr: 6.0e-05
+
+  # Clip gradient norm (optional, recommended):
+  max_norm: 1.0
+
+  # Tying embeddings or not (LLaMA typically does tie embeddings, but up to you):
+  tie_embeddings: false
+
+##############################################################################
+# Evaluation
+##############################################################################
+eval:
+  # Evaluate at the start of training
+  initial_validation: true
+  # Evaluate at the end of training
+  final_validation: true
+
+  # Evaluate every N optimizer steps
+  interval: 1000
+
+  # For language modeling validation, set max_iters or rely on total dataset size
+  max_iters: 100
+
+##############################################################################
+# Optimizer
+##############################################################################
+optimizer:
+  class_path: torch.optim.AdamW
+  init_args:
+    lr: 0.0002
+    weight_decay: 0.1
+    betas:
+      - 0.9
+      - 0.95
+
+##############################################################################
+# Hardware
+##############################################################################
+devices: 4
+num_nodes: 1
+
+##############################################################################
+# Misc
+##############################################################################
+seed: 42
