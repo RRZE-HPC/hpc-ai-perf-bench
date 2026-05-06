@@ -1,0 +1,32 @@
+Bootstrap: docker
+From: dockerhub-mirror3.rrze.uni-erlangen.de/condaforge/miniforge3:latest
+
+%files
+    requirements_all.txt /
+
+%post
+    # set default path for conda to /home/atuin/unrz/unrz108h/conda_arm
+    mkdir -p /home/atuin/unrz/unrz108h/conda_arm
+    export CONDA_PREFIX=/home/atuin/unrz/unrz108h/conda_arm
+    export CONDA_ENVS_DIRS=/home/atuin/unrz/unrz108h/conda_arm/envs
+    conda init
+    source /home/atuin/unrz/unrz108h/conda_arm/etc/profile.d/conda.sh
+    conda create -n pytorch_arm python=3.12
+    conda activate pytorch_arm
+    conda install -y gxx_linux-aarch64 make
+    pip install -r /requirements_all.txt
+    pip3 install ninja
+    pip3 install --no-build-isolation -v -U xformers==0.0.24
+
+%labels
+    Maintainer "NHR@FAU"
+    Version 1.1
+    Description "ARM ROCm 6.3 PyTorch Container with GPU Support and xFormers"
+
+%runscript
+    # Execute python script passed as arguments
+    exec python3 "$@"
+
+
+# Build the container (located in computer vision directory)
+# apptainer build save_path/arm_conda.sif scripts/environment/arm_conda.def

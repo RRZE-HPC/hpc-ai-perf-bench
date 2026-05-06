@@ -1,0 +1,9 @@
+# torch==2.2.0
+# torchvision
+# pynvml
+# pyrsmi
+einops
+open-clip-torch==2.7.0
+pytorch-lightning
+omegaconf
+scipy

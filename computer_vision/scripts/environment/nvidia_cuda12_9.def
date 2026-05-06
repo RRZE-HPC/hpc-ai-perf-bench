@@ -1,0 +1,21 @@
+Bootstrap: docker
+From: nvcr.io/nvidia/pytorch:25.05-py3
+
+%files
+    requirements.txt /
+
+%post
+    pip3 install -r /requirements.txt
+
+%labels
+    Maintainer "NHR@FAU"
+    Version 1.1
+    Description "NVIDIA CUDA 12.9 PyTorch Container with GPU Support"
+
+%runscript
+    # Execute python script passed as arguments
+    exec python3 "$@"
+
+
+# Build the container (located in computer vision directory)
+# apptainer build save_path/nvidia_cuda12_9.sif scripts/environment/nvidia_cuda12_9.def

@@ -1,0 +1,31 @@
+Bootstrap: docker
+From: nvcr.io/nvidia/pytorch:25.06-py3
+
+%files
+    requirements.txt /
+
+%environment
+    # Set CUDA architecture for Blackwell GPUs
+    export TORCH_CUDA_ARCH_LIST="12.0"
+
+%post
+    pip3 install -r /requirements.txt
+    pip3 install ninja
+    pip3 install --no-build-isolation -v -U git+https://github.com/facebookresearch/xformers.git@cbd127ce86f5a42319734ca219b2268e0926d895
+
+    # Verify xformers installation
+    python3 -c "import xformers; print(f'xformers version: {xformers.__version__}')" || echo "xformers import failed"
+
+
+%labels
+    Maintainer "NHR@FAU"
+    Version 1.1
+    Description "NVIDIA CUDA 12.9 PyTorch Container with Blackwell GPU Support"
+
+%runscript
+    # Execute python script passed as arguments
+    exec python3 "$@"
+
+
+# Build the container (located in computer vision directory)
+# apptainer build save_path/nvidia_cuda12_9_xformers_blackwell.sif scripts/environment/nvidia_cuda12_9_xformers_blackwell.def

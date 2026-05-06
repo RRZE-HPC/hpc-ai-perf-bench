@@ -1,0 +1,35 @@
+Bootstrap: docker
+From: nvcr.io/nvidia/pytorch:25.06-py3
+
+%files
+    requirements.txt /
+
+%environment
+    # Set CUDA architecture for Blackwell GPUs
+    export TORCH_CUDA_ARCH_LIST="9.0"
+
+%post
+    export TORCH_CUDA_ARCH_LIST="9.0"
+    # export MAX_JOBS=4
+    export NVCC_FLAGS="-allow-unsupported-compiler"
+    pip3 install -r /requirements.txt
+    pip3 install ninja
+    pip3 install --no-build-isolation -v -U xformers==0.0.31
+
+    # Verify xformers installation
+    python3 -c "import xformers; print(f'xformers version: {xformers.__version__}')" || echo "xformers import failed"
+
+
+%labels
+    Maintainer "NHR@FAU"
+    Version 1.1
+    Description "NVIDIA CUDA 12.9 PyTorch Container with Hopper GPU Support"
+
+%runscript
+    # Execute python script passed as arguments
+    exec python3 "$@"
+
+# NOT WORKING HAS TO BE FIXED!!!
+
+# Build the container (located in computer vision directory)
+# apptainer build save_path/nvidia_cuda12_9_xformers_blackwell.sif scripts/environment/nvidia_cuda12_9_xformers_blackwell.def
