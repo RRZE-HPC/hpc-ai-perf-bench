@@ -12,7 +12,7 @@ and AMD GPUs.
 
 | Suite | Workloads | Models | Frameworks |
 |-------|-----------|--------|------------|
-| [Computer Vision](computer_vision/README.md) | Image classification, image generation | ViT, Stable Diffusion | PyTorch Lightning |
+| [Computer Vision](computer_vision/README.md) | Image classification, image generation | ViT, ResNet, Stable Diffusion | PyTorch Lightning |
 | [LLM](llm/README.md) | Continued pre-training, inference | LLaMA 3 8B | LitGPT, SGLang |
 
 See each suite's documentation for usage and setup details.
