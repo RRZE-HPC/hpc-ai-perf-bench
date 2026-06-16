@@ -27,9 +27,11 @@
 # #SBATCH --reservation=<your-reservation>   # Uncomment and set if needed
 
 # ========================= USER CONFIGURATION ================================
-# Set these paths and parameters to match your environment before submitting.
+# Submit this script from inside the llm/ directory:
+#   cd /path/to/hpc-ai-perf-bench/llm
+#   sbatch inference/slurm_scripts/powercap_inference.sh
 
-WORKSPACE="/path/to/your/workspace"                                   # <-- SET THIS
+WORKSPACE="$SLURM_SUBMIT_DIR"   # automatically set to the directory where sbatch is called
 MODEL_DIR="$WORKSPACE/models/Meta-Llama-3-8B/meta-llama/Meta-Llama-3-8B"
 SIF_PATH="$WORKSPACE/inference/sglang_v0.4.4.post1-cu124.sif"
 REPO_DIR="$WORKSPACE/inference"                                       # Path to this repo's inference/ folder
@@ -43,6 +45,18 @@ PAUSE_SECONDS=${PAUSE_SECONDS:-600}  # Default 10 min; override via env
 # =============================================================================
 
 unset SLURM_EXPORT_ENV
+
+# Verify CUDA is visible inside the container before starting the server
+echo "Checking GPU visibility inside container..."
+GPU_COUNT=$(apptainer exec --nv "$SIF_PATH" python3 -c "import torch; print(torch.cuda.device_count())" 2>/dev/null)
+if [ "$GPU_COUNT" -eq 0 ] 2>/dev/null; then
+    echo "ERROR: No CUDA GPUs visible inside container (torch.cuda.device_count()=0)"
+    echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
+    nvidia-smi -L
+    exit 1
+fi
+echo "GPUs visible inside container: $GPU_COUNT"
+apptainer exec --nv "$SIF_PATH" python3 -c "import torch; [print(f'  GPU {i}: {torch.cuda.get_device_name(i)}') for i in range(torch.cuda.device_count())]" 2>/dev/null
 
 # ------------------ OUTPUT DIRECTORY ------------------
 OUTPUT_BASE="${WORKSPACE}/inference_logs"
@@ -97,7 +111,10 @@ trap cleanup EXIT
 # ------------------ START SGLANG SERVER ------------------
 echo ""
 echo "Starting SGLang server (TP=$NUM_GPUS) ..."
-apptainer exec --nv "$SIF_PATH" \
+apptainer exec --nv \
+    --bind "$MODEL_DIR:$MODEL_DIR" \
+    --bind "$TMPDIR:$TMPDIR" \
+    "$SIF_PATH" \
     python3 -m sglang.launch_server \
         --model-path "$MODEL_DIR" \
         --tp "$NUM_GPUS" \
@@ -124,12 +141,19 @@ echo "Server is ready (waited ${WAITED}s)."
 echo ""
 echo "Running warmup (100 prompts, results discarded) ..."
 sudo nvidia-smi --power-limit=200
-apptainer exec --bind $TMPDIR "$SIF_PATH" \
+apptainer exec \
+    --env HF_HUB_OFFLINE=1 \
+    --env TRANSFORMERS_OFFLINE=1 \
+    --bind "$TMPDIR:$TMPDIR" \
+    --bind "$MODEL_DIR:$MODEL_DIR" \
+    --bind "$REPO_DIR/sglang/bench_serving.py:/sgl-workspace/sglang/python/sglang/bench_serving.py" \
+    "$SIF_PATH" \
     python3 -m sglang.bench_serving \
         --backend sglang \
         --disable-tqdm \
         --host 0.0.0.0 \
         --port "$SERVER_PORT" \
+        --tokenizer "$MODEL_DIR" \
         --output-file "$TMPDIR/warmup.json" \
         --dataset-name random \
         --num-prompt 100 \
@@ -165,14 +189,22 @@ for POWER_LIMIT in "${POWER_LIMITS[@]}"; do
 
     # Run benchmark
     echo "Running sglang.bench_serving (${NUM_PROMPTS} prompts) ..."
-    apptainer exec --bind $TMPDIR "$SIF_PATH" \
+    apptainer exec \
+        --env HF_HUB_OFFLINE=1 \
+        --env TRANSFORMERS_OFFLINE=1 \
+        --bind "$TMPDIR:$TMPDIR" \
+        --bind "$LOG_DIR:$LOG_DIR" \
+        --bind "$MODEL_DIR:$MODEL_DIR" \
+        --bind "$REPO_DIR/sglang/bench_serving.py:/sgl-workspace/sglang/python/sglang/bench_serving.py" \
+        "$SIF_PATH" \
         python3 -m sglang.bench_serving \
             --backend sglang \
             --host 0.0.0.0 \
             --port "$SERVER_PORT" \
+            --tokenizer "$MODEL_DIR" \
             --output-file "$BENCH_FILE" \
             --num-prompt "$NUM_PROMPTS" \
-            --random-input-len 8192 \
+            --random-input-len 1024 \
             --random-output-len 256 \
             --seed 42 \
             --dataset-name random

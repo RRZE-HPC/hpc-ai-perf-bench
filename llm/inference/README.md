@@ -11,6 +11,7 @@ Containerized with Apptainer for reproducible execution on HPC clusters. Benchma
 ```
 inference/
 ├── slurm_scripts/
+│   ├── inference_4x.sh                              # SLURM smoke test (no power capping)
 │   ├── powercap_inference.sh                        # SLURM job script (NVIDIA GPUs)
 │   └── powercap_inference_mi300x_4x.sh              # SLURM job script (AMD MI300X GPUs)
 ├── analysis/
@@ -29,30 +30,31 @@ inference/
 **For NVIDIA GPUs:**
 
 ```bash
+cd /path/to/hpc-ai-perf-bench/llm/inference
 apptainer pull docker://lmsysorg/sglang:v0.4.4.post1-cu124
 ```
 
-This creates `sglang_v0.4.4.post1-cu124.sif` — a container with SGLang, CUDA 12.4, and all serving dependencies.
+This creates `sglang_v0.4.4.post1-cu124.sif` in the `inference/` directory — a container with SGLang, CUDA 12.4, and all serving dependencies.
 
 **For AMD MI300X GPUs:**
 
 ```bash
+cd /path/to/hpc-ai-perf-bench/llm/inference
 apptainer pull docker://lmsysorg/sglang:v0.4.4.post1-rocm630
 ```
 
-This creates `sglang_v0.4.4.post1-rocm630.sif` — a container with SGLang, ROCm 6.3.0, and all serving dependencies.
+This creates `sglang_v0.4.4.post1-rocm630.sif` in the `inference/` directory — a container with SGLang, ROCm 6.3.0, and all serving dependencies.
 
 ### 2. Configure the SLURM Script
 
 **For NVIDIA GPUs,** edit `slurm_scripts/powercap_inference.sh`:
 
-1. **Set `WORKSPACE`** to your workspace path (the directory containing `inference/`, `models/`, etc.)
-2. **Adjust `#SBATCH` directives** as needed for your cluster:
+1. **Adjust `#SBATCH` directives** as needed for your cluster:
    - `--partition` — your GPU partition name (e.g. `h200`, `h100`)
    - `--reservation` — uncomment and set if you have a reservation
    - `--gres` and `--ntasks` — must match `NUM_GPUS`
    - `--time` — wall time (default: 4 hours, covers 6 power caps with 10-min pauses)
-3. **Optionally adjust other variables:**
+2. **Optionally adjust other variables:**
    - `NUM_GPUS` — number of GPUs (must match `--gres` and `--ntasks`; also used as tensor-parallel degree)
    - `NUM_PROMPTS` — number of prompts per benchmark run (default: 2048)
    - `POWER_LIMITS` — array of power caps in watts (default: `200 300 400 500 600 700`)
@@ -60,35 +62,48 @@ This creates `sglang_v0.4.4.post1-rocm630.sif` — a container with SGLang, ROCm
 
 **For AMD MI300X GPUs,** edit `slurm_scripts/powercap_inference_mi300x_4x.sh`:
 
-1. **Set `WORKSPACE`** to your workspace path
-2. **Adjust `#SBATCH` directives** as needed:
+1. **Adjust `#SBATCH` directives** as needed:
    - `--nodelist` — your MI300X node name
    - `--constraint` — GPU constraint (default: `mi300x`)
    - Remove or comment out `--partition` if not using partitions
-3. **Set `SIF_PATH`** to point to the ROCm container: `sglang_v0.4.4.post1-rocm630.sif`
-4. **Verify `HIP_VISIBLE_DEVICES`** matches your GPU configuration (default: `0,1,2,3`)
-5. **Optionally adjust** the same variables as NVIDIA script above
+2. **Set `SIF_PATH`** to point to the ROCm container: `sglang_v0.4.4.post1-rocm630.sif`
+3. **Verify `HIP_VISIBLE_DEVICES`** matches your GPU configuration (default: `0,1,2,3`)
+4. **Optionally adjust** the same variables as NVIDIA script above
+
+> **No manual path configuration needed** for NVIDIA scripts. Both use `$SLURM_SUBMIT_DIR` to locate paths automatically — as long as you submit from inside the `llm/` directory.
 
 ## Running
 
-### NVIDIA GPUs
+Always submit from inside the `llm/` directory.
 
-Submit the job:
+### Smoke test (no power capping)
+
+Use this first to verify the container, model weights, and server start correctly:
 
 ```bash
-sbatch slurm_scripts/powercap_inference.sh
+cd /path/to/hpc-ai-perf-bench/llm
+sbatch inference/slurm_scripts/inference_4x.sh
+```
+
+### Full power-cap sweep
+
+Once the smoke test passes, run the full benchmark:
+
+```bash
+cd /path/to/hpc-ai-perf-bench/llm
+sbatch inference/slurm_scripts/powercap_inference.sh
 ```
 
 You can also override the partition at submit time:
 
 ```bash
-sbatch --partition=h100 slurm_scripts/powercap_inference.sh
+sbatch --partition=h100 inference/slurm_scripts/powercap_inference.sh
 ```
 
 Or override the pause duration via environment variable:
 
 ```bash
-PAUSE_SECONDS=300 sbatch slurm_scripts/powercap_inference.sh
+PAUSE_SECONDS=300 sbatch inference/slurm_scripts/powercap_inference.sh
 ```
 
 ### AMD MI300X GPUs
@@ -208,7 +223,7 @@ PAUSE_SECONDS=300 sbatch slurm_scripts/powercap_inference.sh
 | `NUM_GPUS` | 4 | Number of GPUs (= tensor-parallel degree) |
 | `NUM_PROMPTS` | 2048 | Prompts per benchmark run |
 | `SERVER_PORT` | 6000 | SGLang server port |
-| `--random-input-len` | 8192 | Input token length per prompt |
+| `--random-input-len` | 1024 | Input token length per prompt (must fit within context window with output) |
 | `--random-output-len` | 256 | Output token length per prompt |
 
 ## License

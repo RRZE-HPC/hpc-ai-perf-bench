@@ -12,6 +12,7 @@ llm/training/training_logs/
 llm/training/results/
 llm/inference/inference_logs/
 llm/inference/results/
+llm/inference_logs/
 
 # Python
 __pycache__/
