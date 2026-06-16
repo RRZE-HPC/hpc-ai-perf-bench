@@ -1,0 +1,22 @@
+# Model weights
+llm/models/
+
+# Apptainer containers
+*.sif
+
+# SLURM output logs
+*.out
+
+# Benchmark output logs and generated results
+llm/training/training_logs/
+llm/training/results/
+llm/inference/inference_logs/
+llm/inference/results/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+env/
+venv/
+.venv/

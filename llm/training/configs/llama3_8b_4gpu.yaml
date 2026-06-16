@@ -29,6 +29,8 @@ data:
 ##############################################################################
 train:
 
+  save_interval: null        # Disable checkpointing — benchmark only
+
   log_interval: 1            # Print loss/logs every step
 
   # Batch sizing

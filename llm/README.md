@@ -66,6 +66,18 @@ huggingface-cli download meta-llama/Meta-Llama-3-8B --local-dir models/Meta-Llam
 
 > **Note:** The training benchmark can also download via `litgpt download meta-llama/Meta-Llama-3-8B` inside the container.
 
+### 2b. Convert Model Weights to LitGPT Format (training benchmark only)
+
+LitGPT requires the weights as a single `lit_model.pth` file. After downloading, convert the HuggingFace `.safetensors` shards:
+
+```bash
+apptainer exec --bind $(pwd):$(pwd) training/litgpt.sif \
+  litgpt convert_to_litgpt \
+  $(pwd)/models/Meta-Llama-3-8B/meta-llama/Meta-Llama-3-8B
+```
+
+This creates `lit_model.pth` in the same directory alongside the existing files. The inference benchmark (SGLang) uses the original HuggingFace format directly and does not need this step.
+
 #### Expected `models/` directory layout
 
 ```

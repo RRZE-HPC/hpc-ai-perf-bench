@@ -42,26 +42,41 @@ This creates `litgpt.sif` — a container with CUDA 12.1, PyTorch, InfiniBand su
 
 ### 2. Configure the SLURM Script
 
-Edit the script (e.g. `slurm_scripts/powercap_training_4x.sh`):
+Edit `slurm_scripts/powercap_training_4x.sh`:
 
-1. **Set `WORKSPACE`** to your workspace path (the directory containing `training/`, `models/`, `litgpt.sif`, etc.)
-2. **Adjust `#SBATCH` directives** as needed for your cluster:
+1. **Adjust `#SBATCH` directives** as needed for your cluster:
    - `--partition` — your GPU partition name (e.g. `h100` or `h200`)
    - `--reservation` — uncomment and set if you have a reservation
    - `--time` — wall time (default: 12 hours, covers 6 power caps with 10-min pauses)
-3. **Optionally adjust `POWER_LIMITS`** array (default: `200 300 400 500 600 700` watts)
-4. **Optionally adjust `PAUSE_SECONDS`** — stabilization time between power cap changes (default: 600s = 10 min)
-5. **Optionally adjust synthetic data size** in `configs/llama3_8b_4gpu.yaml` via `data.init_args.train_samples` and `data.init_args.val_samples`
+2. **Optionally adjust `POWER_LIMITS`** array (default: `200 300 400 500 600 700` watts)
+3. **Optionally adjust `PAUSE_SECONDS`** — stabilization time between power cap changes (default: 600s = 10 min)
+4. **Optionally adjust synthetic data size** in `configs/llama3_8b_4gpu.yaml` via `data.init_args.train_samples` and `data.init_args.val_samples`
+
+> **No manual path configuration needed.** The script uses `$SLURM_SUBMIT_DIR` to locate all paths automatically — as long as you submit from inside the `llm/` directory.
 
 ## Running
 
-Submit the job from anywhere:
+Always submit from inside the `llm/` directory.
+
+### Smoke test (no power capping)
+
+Use this first to verify the container, model weights, and config are working:
 
 ```bash
-sbatch slurm_scripts/powercap_training_4x.sh
+cd /path/to/hpc-ai-perf-bench/llm
+sbatch training/slurm_scripts/training_4x.sh
+```
+
+### Full power-cap sweep
+
+Once the smoke test passes, run the full benchmark:
+
+```bash
+cd /path/to/hpc-ai-perf-bench/llm
+sbatch training/slurm_scripts/powercap_training_4x.sh
 
 # Optional: control SLURM stdout/stderr location
-# sbatch -o /some/path/training_%x_%j.out slurm_scripts/powercap_training_4x.sh
+# sbatch -o /some/path/training_%x_%j.out training/slurm_scripts/powercap_training_4x.sh
 ```
 
 ### What Happens
@@ -83,37 +98,6 @@ Logs are written to `<WORKSPACE>/training_logs/`:
 
 Each job writes job metadata, per-power-limit metrics, and GPU monitoring logs into a timestamped directory under `training_logs/`.
 
-## Analysis
-
-After the job completes, run the analysis script on one or more job log directories. The GPU type (e.g. `h100`, `h200`) is auto-detected from the directory name.
-
-```bash
-# Single GPU type
-python analysis/analyze_powercap_results.py \
-    training_logs/llama_benchmark_<JOBID>_4xh200_<TIMESTAMP>_logs/
-
-# Multiple GPU types — produces a combined Z-plot chart
-python analysis/analyze_powercap_results.py \
-    training_logs/llama_benchmark_<JOBID>_4xh100_<TIMESTAMP>_logs/ \
-    training_logs/llama_benchmark_<JOBID>_4xh200_<TIMESTAMP>_logs/
-
-# Custom results directory
-python analysis/analyze_powercap_results.py \
-    --results-dir ./my_results \
-    training_logs/llama_benchmark_*_4xh200_*_logs/
-```
-
-### Output
-
-The script produces:
-
-1. **Per-power-limit analysis** — tokens/sec, average power draw, SM/memory clock speeds, tokens/joule
-2. **Summary table** — all power limits side by side (per GPU type)
-3. **Optimal configuration** — the power limit with the best tokens/joule ratio
-4. **Z-plot chart** (PNG + SVG) — energy efficiency vs throughput with clock speeds, saved to the results directory. When multiple GPU types are provided, all are overlaid on a single chart.
-5. **Copy-pasteable numpy arrays** — for use in custom scripts:
-   - `power_limits`, `tokens_per_sec`, `tokens_per_joule`, `total_avg_power`, `total_avg_gfx_clock`, `total_avg_mem_clock`
-6. **`analysis_results_<N>x<GPU>.csv`** — saved to both the job logs directory and the results directory
 
 ### Options
 

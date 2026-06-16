@@ -37,11 +37,13 @@
 # #SBATCH --reservation=<your-reservation>   # Uncomment and set if needed
 
 # ========================= USER CONFIGURATION ================================
-# Set these paths to match your environment before submitting.
+# Submit this script from inside the llm/ directory:
+#   cd /path/to/hpc-ai-perf-bench/llm
+#   sbatch training/slurm_scripts/powercap_training_4x.sh
 
-WORKSPACE="/path/to/your/workspace"                                   # <-- SET THIS TO ROOT OF REPOSITORY
+WORKSPACE="$SLURM_SUBMIT_DIR"   # automatically set to the directory where sbatch is called
 MODEL_DIR="$WORKSPACE/models/Meta-Llama-3-8B/meta-llama/Meta-Llama-3-8B"
-REPO_DIR="$WORKSPACE/training"   # Path to this repo's training/ folder
+REPO_DIR="$WORKSPACE/training"
 CONTAINER_PATH="$REPO_DIR/litgpt.sif"
 
 # =============================================================================
@@ -145,6 +147,7 @@ EOF
         --bind "$OUTPUT:$OUTPUT" \
         --bind "$REPO_DIR:$REPO_DIR" \
         --bind "$WORKSPACE:$WORKSPACE" \
+        --bind "$REPO_DIR/litgpt:/workspace/litgpt" \
         --pwd "$RUN_DIR" \
         "$CONTAINER_PATH" \
         python /usr/local/bin/litgpt pretrain Meta-Llama-3-8B \
